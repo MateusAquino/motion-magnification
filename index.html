@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: #000;
+      }
+
+      .motionAmplified {
+        position: relative;
+        width: 1280px;
+        height: 720px;
+      }
+      .motionAmplified video {
+        display: none;
+      }
+      .motionAmplified canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .controls {
+        margin-top: 10px;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="motionAmplified">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+    </div>
+    <div class="controls">
+      <div>
+        <label for="delayR">Delay (R): </label>
+        <input type="range" id="delayR" min="0" max="30" step="1" value="3" />
+        <span id="delayRValue">3</span> frames
+      </div>
+      <div>
+        <label for="delayG">Delay (G): </label>
+        <input type="range" id="delayG" min="0" max="30" step="1" value="3" />
+        <span id="delayGValue">3</span> frames
+      </div>
+      <div>
+        <label for="delayB">Delay (B): </label>
+        <input type="range" id="delayB" min="0" max="30" step="1" value="3" />
+        <span id="delayBValue">3</span> frames
+      </div>
+      <div>
+        <label for="intensityP">Intensity (previous): </label>
+        <input
+          type="range"
+          id="intensityP"
+          min="-100"
+          max="100"
+          step="1"
+          value="50"
+        />
+        <span id="intensityPValue">50</span> %
+      </div>
+      <div>
+        <label for="intensityC">Intensity (current): </label>
+        <input
+          type="range"
+          id="intensityC"
+          min="-100"
+          max="100"
+          step="1"
+          value="50"
+        />
+        <span id="intensityCValue">50</span> %
+      </div>
+      <div>
+        Presets:
+        <button onclick="setPreset(1)">1</button>
+        <button onclick="setPreset(2)">2</button>
+        <button onclick="setPreset(3)">3</button>
+        <button onclick="setPreset(4)">4</button>
+        <button onclick="setPreset(5)">5</button>
+        <button onclick="setPreset(6)">R</button>
+      </div>
+    </div>
+    <script>
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const frameBuffer = [];
+      const maxDelay = 30;
+
+      // Setup Controls
+      const delayRSlider = document.getElementById("delayR");
+      const delayRValue = document.getElementById("delayRValue");
+      delayRSlider.addEventListener(
+        "input",
+        () => (delayRValue.textContent = parseInt(delayRSlider.value, 10))
+      );
+      const delayGSlider = document.getElementById("delayG");
+      const delayGValue = document.getElementById("delayGValue");
+      delayGSlider.addEventListener(
+        "input",
+        () => (delayGValue.textContent = parseInt(delayGSlider.value, 10))
+      );
+      const delayBSlider = document.getElementById("delayB");
+      const delayBValue = document.getElementById("delayBValue");
+      delayBSlider.addEventListener(
+        "input",
+        () => (delayBValue.textContent = parseInt(delayBSlider.value, 10))
+      );
+
+      const intensityPSlider = document.getElementById("intensityP");
+      const intensityPValue = document.getElementById("intensityPValue");
+      intensityPSlider.addEventListener(
+        "input",
+        () =>
+          (intensityPValue.textContent = parseInt(intensityPSlider.value, 10))
+      );
+
+      const intensityCSlider = document.getElementById("intensityC");
+      const intensityCValue = document.getElementById("intensityCValue");
+      intensityCSlider.addEventListener(
+        "input",
+        () =>
+          (intensityCValue.textContent = parseInt(intensityCSlider.value, 10))
+      );
+
+      // Setup presets
+      function setPreset(preset) {
+        const { delayB, delayG, delayR, intensityC, intensityP } = [
+          {
+            delayR: 6,
+            delayG: 4,
+            delayB: 2,
+            intensityP: 100,
+            intensityC: 90,
+          },
+          {
+            delayR: 9,
+            delayG: 6,
+            delayB: 3,
+            intensityP: 50,
+            intensityC: 100,
+          },
+          {
+            delayR: 1,
+            delayG: 2,
+            delayB: 1,
+            intensityP: -100,
+            intensityC: -100,
+          },
+          {
+            delayR: 3,
+            delayG: 2,
+            delayB: 1,
+            intensityP: -60,
+            intensityC: -100,
+          },
+          {
+            delayR: 30,
+            delayG: 20,
+            delayB: 10,
+            intensityP: -50,
+            intensityC: 50,
+          },
+          {
+            delayR: 3,
+            delayG: 3,
+            delayB: 3,
+            intensityP: 50,
+            intensityC: 50,
+          },
+        ][preset - 1];
+        delayRSlider.value = delayR;
+        delayGSlider.value = delayG;
+        delayBSlider.value = delayB;
+        intensityPSlider.value = intensityP;
+        intensityCSlider.value = intensityC;
+        delayRSlider.dispatchEvent(new Event("input"));
+        delayGSlider.dispatchEvent(new Event("input"));
+        delayBSlider.dispatchEvent(new Event("input"));
+        intensityPSlider.dispatchEvent(new Event("input"));
+        intensityCSlider.dispatchEvent(new Event("input"));
+      }
+
+      // Setup Webcam
+      async function setupWebcam() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              frameRate: { ideal: 60 },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+          video.srcObject = stream;
+
+          // Wait for the video metadata to be loaded
+          video.addEventListener("loadedmetadata", () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            processVideo();
+          });
+        } catch (err) {
+          console.error("Error accessing webcam:", err);
+          alert(
+            "Could not access the webcam. Please allow camera permissions."
+          );
+        }
+      }
+
+      function updateDelayWindow(imageData) {
+        const delayR = parseInt(delayRSlider.value, 10) + 1;
+        const delayG = parseInt(delayGSlider.value, 10) + 1;
+        const delayB = parseInt(delayBSlider.value, 10) + 1;
+        const intensityC = parseInt(intensityCSlider.value, 10) / 100.0;
+        const intensityP = parseInt(intensityPSlider.value, 10) / 100.0;
+
+        const { data } = imageData;
+
+        frameBuffer.push(new Uint8ClampedArray(data));
+        if (frameBuffer.length > maxDelay) frameBuffer.shift();
+
+        const lastDataR =
+          frameBuffer.length > delayR
+            ? frameBuffer[frameBuffer.length - delayR]
+            : frameBuffer[0];
+
+        const lastDataG =
+          frameBuffer.length > delayG
+            ? frameBuffer[frameBuffer.length - delayG]
+            : frameBuffer[0];
+
+        const lastDataB =
+          frameBuffer.length > delayB
+            ? frameBuffer[frameBuffer.length - delayB]
+            : frameBuffer[0];
+
+        for (let i = 0; i < data.length; i += 4) {
+          data[i + 0] =
+            data[i + 0] * intensityC - lastDataR[i + 0] * intensityP;
+          data[i + 1] =
+            data[i + 1] * intensityC - lastDataG[i + 1] * intensityP;
+          data[i + 2] =
+            data[i + 2] * intensityC - lastDataB[i + 2] * intensityP;
+        }
+      }
+
+      function processVideo() {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        updateDelayWindow(frame);
+        ctx.putImageData(frame, 0, 0);
+
+        requestAnimationFrame(processVideo);
+      }
+
+      setupWebcam();
+    </script>
+  </body>
+</html>
